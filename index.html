@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>声音传播实验 MVP</title>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <div class="panel">
+      <h1>声音传播实验 MVP</h1>
+      <p>目标：用 3D 教学动画展示“声源振动 → 空气振动 → 振动逐层传播 → 小球依次响应”。</p>
+      <div class="controls">
+        <div class="buttons">
+          <button id="playBtn" class="primary">播放</button>
+          <button id="resetBtn">重置</button>
+        </div>
+        <div class="row">
+          <label for="volume">音量（影响振幅）</label>
+          <input id="volume" type="range" min="0" max="1" step="0.01" value="0.7" />
+        </div>
+        <div class="row">
+          <label for="freq">频率（影响振动速度）</label>
+          <input id="freq" type="range" min="0" max="2" step="1" value="1" />
+        </div>
+      </div>
+      <div class="status">
+        <span>显示：宏观 + 微观</span>
+        <span id="freqText">频率：中</span>
+        <span id="volText">音量：0.70</span>
+      </div>
+      <div class="legend">
+        说明：<br />
+        1. 小球数量固定为 6 个。<br />
+        2. 已增强传播延迟，近处先动、远处后动更明显。<br />
+        3. 波纹改为多条纵向波前，更接近教材里的“逐层传播”。<br />
+        4. 同时显示空气粒子点阵，突出“原地振动、疏密相间”。<br />
+        5. 底部字幕由时间轴统一控制，便于后续扩展成完整教学视频。
+      </div>
+    </div>
+
+    <div class="hint">拖动鼠标可旋转视角；滚轮可缩放</div>
+    <div class="teaching-box">
+      <div class="teaching-title">课堂讲解要点</div>
+      <div id="teachingText" class="teaching-text">请先观察声源与小球，建立“振动引发传播”的整体认识。</div>
+    </div>
+    <div id="devcheck" class="devcheck">初始化中…</div>
+    <div id="caption" class="caption">声音是如何传播的？</div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
