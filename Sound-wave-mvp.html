@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>声音传播实验 MVP</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: rgba(18, 20, 26, 0.88);
+      --border: rgba(255,255,255,0.08);
+      --text: #f4f7fb;
+      --muted: #b5bfd0;
+      --accent: #73b7ff;
+      --ok: #6fdc8c;
+      --warn: #ffd166;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+    #app { position: fixed; inset: 0; overflow: hidden; }
+    canvas { display: block; }
+    .panel {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      width: 340px;
+      max-width: calc(100vw - 32px);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      backdrop-filter: blur(8px);
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      z-index: 10;
+    }
+    .panel h1 { margin: 0 0 8px; font-size: 18px; }
+    .panel p { margin: 0 0 14px; color: var(--muted); line-height: 1.5; font-size: 13px; }
+    .controls { display: grid; gap: 12px; }
+    .row { display: grid; gap: 6px; }
+    .row label { font-size: 12px; color: var(--muted); }
+    .row input[type="range"] { width: 100%; }
+    .buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+    button {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button.primary {
+      background: var(--accent);
+      color: #08111b;
+      border-color: transparent;
+      font-weight: 600;
+    }
+    button.active { outline: 2px solid rgba(115,183,255,0.55); }
+    .legend {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .caption {
+      position: absolute;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      min-width: 320px;
+      max-width: calc(100vw - 32px);
+      background: rgba(8,10,14,0.72);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px 18px;
+      text-align: center;
+      font-size: 18px;
+      line-height: 1.5;
+      z-index: 10;
+      backdrop-filter: blur(8px);
+    }
+    .status {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    .hint {
+      position: absolute;
+      right: 16px;
+      top: 16px;
+      padding: 10px 14px;
+      background: rgba(8,10,14,0.72);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      z-index: 10;
+    }
+    .devcheck {
+      position: absolute;
+      right: 16px;
+      top: 68px;
+      width: 280px;
+      max-width: calc(100vw - 32px);
+      padding: 12px 14px;
+      background: rgba(8,10,14,0.72);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      z-index: 10;
+      line-height: 1.6;
+    }
+    .devcheck strong { color: var(--text); }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div class="panel">
+    <h1>声音传播实验 MVP</h1>
+    <p>目标：用 3D 教学动画展示“声源振动 → 空气振动 → 振动逐层传播 → 小球依次响应”。</p>
+    <div class="controls">
+      <div class="buttons">
+        <button id="playBtn" class="primary">播放 / 暂停</button>
+        <button id="resetBtn">重置</button>
+        <button id="microBtn">微观模式</button>
+      </div>
+      <div class="row">
+        <label for="volume">音量（影响振幅）</label>
+        <input id="volume" type="range" min="0" max="1" step="0.01" value="0.7" />
+      </div>
+      <div class="row">
+        <label for="freq">频率（影响振动速度）</label>
+        <input id="freq" type="range" min="0" max="2" step="1" value="1" />
+      </div>
+    </div>
+    <div class="status">
+      <span id="modeText">模式：普通</span>
+      <span id="freqText">频率：中</span>
+      <span id="volText">音量：0.70</span>
+    </div>
+    <div class="legend">
+      说明：<br />
+      1. 小球数量固定为 6 个。<br />
+      2. 已增强传播延迟，近处先动、远处后动更明显。<br />
+      3. 波纹改为多条纵向波前，更接近教材里的“逐层传播”。<br />
+      4. 微观模式下使用空气粒子点阵，突出“原地振动、疏密相间”。<br />
+      5. 底部字幕由时间轴统一控制，便于后续扩展成完整教学视频。
+    </div>
+  </div>
+
+  <div class="hint">拖动鼠标可旋转视角；滚轮可缩放</div>
+  <div id="devcheck" class="devcheck">初始化中…</div>
+  <div id="caption" class="caption">声音是如何传播的？</div>
+
+  <script type="module">
+    // 使用 esm.sh 以兼容沙箱环境，避免 examples/jsm 内部裸模块导入报错。
+    import * as THREE from 'https://esm.sh/three@0.166.1';
+    import { OrbitControls } from 'https://esm.sh/three@0.166.1/examples/jsm/controls/OrbitControls.js';
+
+    const app = document.getElementById('app');
+    const captionEl = document.getElementById('caption');
+    const devcheckEl = document.getElementById('devcheck');
+    const playBtn = document.getElementById('playBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const microBtn = document.getElementById('microBtn');
+    const volumeInput = document.getElementById('volume');
+    const freqInput = document.getElementById('freq');
+    const modeText = document.getElementById('modeText');
+    const freqText = document.getElementById('freqText');
+    const volText = document.getElementById('volText');
+
+    const checks = [];
+    function addCheck(label, pass, detail = '') {
+      checks.push({ label, pass, detail });
+      devcheckEl.innerHTML = `
+        <strong>运行检查</strong><br />
+        ${checks.map(item => `${item.pass ? '<span class="ok">✓</span>' : '<span class="warn">⚠</span>'} ${item.label}${item.detail ? `：${item.detail}` : ''}`).join('<br />')}
+      `;
+    }
+
+    addCheck('Three.js 已加载', !!THREE.REVISION, `r${THREE.REVISION || 'unknown'}`);
+    addCheck('OrbitControls 已加载', typeof OrbitControls === 'function');
+
+    // =========================
+    // 场景 / 相机 / 渲染器
+    // =========================
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f1115);
+    scene.fog = new THREE.Fog(0x0f1115, 10, 24);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(2.6, 2.7, 7.6);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    app.appendChild(renderer.domElement);
+    addCheck('Renderer 已创建', !!renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.2, 0);
+    controls.enableDamping = true;
+    controls.minDistance = 4;
+    controls.maxDistance = 14;
+    addCheck('交互控制器已创建', true);
+
+    // =========================
+    // 灯光 / 地面
+    // =========================
+    const hemi = new THREE.HemisphereLight(0xa8c7ff, 0x1b1d22, 1.2);
+    scene.add(hemi);
+
+    const dir = new THREE.DirectionalLight(0xffffff, 1.6);
+    dir.position.set(4, 8, 5);
+    dir.castShadow = true;
+    dir.shadow.mapSize.set(2048, 2048);
+    dir.shadow.camera.left = -10;
+    dir.shadow.camera.right = 10;
+    dir.shadow.camera.top = 10;
+    dir.shadow.camera.bottom = -10;
+    scene.add(dir);
+
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(30, 30),
+      new THREE.MeshStandardMaterial({ color: 0x151922, roughness: 0.95, metalness: 0.02 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    const grid = new THREE.GridHelper(30, 30, 0x263141, 0x1b2230);
+    grid.position.y = 0.001;
+    scene.add(grid);
+
+    // =========================
+    // 音响模型
+    // =========================
+    const speakerGroup = new THREE.Group();
+    scene.add(speakerGroup);
+    speakerGroup.position.set(-3.0, 0.9, 0);
+
+    const speakerBody = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 1.8, 1.0),
+      new THREE.MeshStandardMaterial({ color: 0x20252f, roughness: 0.65, metalness: 0.2 })
+    );
+    speakerBody.castShadow = true;
+    speakerBody.receiveShadow = true;
+    speakerGroup.add(speakerBody);
+
+    const diaphragmBaseZ = 0.52;
+    const diaphragm = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.35, 0.35, 0.08, 48),
+      new THREE.MeshStandardMaterial({ color: 0x5d6c80, roughness: 0.35, metalness: 0.35 })
+    );
+    diaphragm.rotation.x = Math.PI / 2;
+    diaphragm.position.set(0, 0, diaphragmBaseZ);
+    diaphragm.castShadow = true;
+    speakerGroup.add(diaphragm);
+
+    const wooferRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.42, 0.05, 16, 60),
+      new THREE.MeshStandardMaterial({ color: 0x95a5b7, roughness: 0.4, metalness: 0.45 })
+    );
+    wooferRing.position.set(0, 0, 0.51);
+    speakerGroup.add(wooferRing);
+
+    // =========================
+    // 支架与 6 个小球
+    // =========================
+    const experimentGroup = new THREE.Group();
+    scene.add(experimentGroup);
+
+    const standMaterial = new THREE.MeshStandardMaterial({ color: 0x7f8b99, roughness: 0.35, metalness: 0.75 });
+    const topY = 2.25;
+    const standLeftX = -1.35;
+    const standRightX = 1.4;
+
+    const leftPole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.2, 20), standMaterial);
+    leftPole.position.set(standLeftX, 1.1, 0);
+    leftPole.castShadow = true;
+    experimentGroup.add(leftPole);
+
+    const rightPole = leftPole.clone();
+    rightPole.position.x = standRightX;
+    experimentGroup.add(rightPole);
+
+    const topBar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.025, 0.025, standRightX - standLeftX, 20),
+      standMaterial
+    );
+    topBar.rotation.z = Math.PI / 2;
+    topBar.position.set((standLeftX + standRightX) / 2, topY, 0);
+    topBar.castShadow = true;
+    experimentGroup.add(topBar);
+
+    const baseBarL = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.05, 0.45), standMaterial);
+    baseBarL.position.set(standLeftX, 0.025, 0);
+    experimentGroup.add(baseBarL);
+    const baseBarR = baseBarL.clone();
+    baseBarR.position.x = standRightX;
+    experimentGroup.add(baseBarR);
+
+    const ballXs = [-1.0, -0.6, -0.2, 0.2, 0.6, 1.0];
+    const balls = [];
+    const ballMaterial = new THREE.MeshStandardMaterial({ color: 0xf1a13a, roughness: 0.55, metalness: 0.05 });
+    const lineMaterial = new THREE.LineBasicMaterial({ color: 0xc9d3df, transparent: true, opacity: 0.9 });
+
+    function makeStringGeometry(endPoint) {
+      return new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        endPoint.clone()
+      ]);
+    }
+
+    ballXs.forEach((x) => {
+      const group = new THREE.Group();
+      group.position.set(x, topY, 0);
+      experimentGroup.add(group);
+
+      const ballRest = new THREE.Vector3(0, -1.05, 0);
+      const line = new THREE.Line(makeStringGeometry(ballRest), lineMaterial);
+      group.add(line);
+
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.13, 32, 32), ballMaterial);
+      ball.position.copy(ballRest);
+      ball.castShadow = true;
+      ball.receiveShadow = true;
+      group.add(ball);
+
+      balls.push({
+        group,
+        line,
+        ball,
+        rest: ballRest,
+        distance: x - speakerGroup.position.x,
+        delay: (x - speakerGroup.position.x) * 0.34
+      });
+    });
+    addCheck('6 个小球已创建', balls.length === 6, `当前数量 ${balls.length}`);
+
+    // =========================
+    // 声波可视化：多条纵向波前
+    // 更贴近教材里“逐层传播”的观感
+    // =========================
+    const waveGroup = new THREE.Group();
+    scene.add(waveGroup);
+    const waves = [];
+    const waveCurvePoints = [];
+    const waveHeight = 1.45;
+    for (let i = 0; i <= 48; i++) {
+      const y = -waveHeight / 2 + (i / 48) * waveHeight;
+      const z = Math.sin((i / 48) * Math.PI) * 0.10;
+      waveCurvePoints.push(new THREE.Vector3(0, y, z));
+    }
+    const waveCurve = new THREE.CatmullRomCurve3(waveCurvePoints);
+    const waveTubeGeometry = new THREE.TubeGeometry(waveCurve, 48, 0.012, 8, false);
+
+    for (let i = 0; i < 8; i++) {
+      const wave = new THREE.Mesh(
+        waveTubeGeometry,
+        new THREE.MeshBasicMaterial({ color: 0x7ec2ff, transparent: true, opacity: 0 })
+      );
+      wave.visible = false;
+      waveGroup.add(wave);
+      waves.push({ mesh: wave, progress: 0, active: false, x: -2.3 });
+    }
+    addCheck('波前对象已创建', waves.length === 8, `当前数量 ${waves.length}`);
+
+    function spawnWave() {
+      const available = waves.find(w => !w.active);
+      if (!available) return;
+      available.active = true;
+      available.progress = 0;
+      available.x = -2.35;
+      available.mesh.visible = true;
+      available.mesh.position.set(available.x, 1.12, 0);
+      available.mesh.scale.set(1, 1, 1);
+      available.mesh.material.opacity = 0.85;
+    }
+
+    // =========================
+    // 微观模式：空气粒子点阵
+    // 使用固定点阵，通过 x 方向原地振动表现疏密相间的纵波
+    // =========================
+    const cols = 22;
+    const rows = 10;
+    const particleCount = cols * rows;
+    const particlePositions = new Float32Array(particleCount * 3);
+    const particleColors = new Float32Array(particleCount * 3);
+    const particleMeta = [];
+
+    let idx = 0;
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const x = -2.2 + col * 0.19;
+        const y = 0.52 + row * 0.18;
+        const z = (row % 2 === 0 ? -0.02 : 0.02);
+        particlePositions[idx * 3] = x;
+        particlePositions[idx * 3 + 1] = y;
+        particlePositions[idx * 3 + 2] = z;
+        particleColors[idx * 3] = 0.74;
+        particleColors[idx * 3 + 1] = 0.88;
+        particleColors[idx * 3 + 2] = 1.0;
+        particleMeta.push({ baseX: x, baseY: y, baseZ: z, col, row });
+        idx++;
+      }
+    }
+
+    const particleGeometry = new THREE.BufferGeometry();
+    particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    particleGeometry.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
+
+    const particles = new THREE.Points(
+      particleGeometry,
+      new THREE.PointsMaterial({
+        size: 0.055,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0,
+        sizeAttenuation: true
+      })
+    );
+    particles.visible = false;
+    scene.add(particles);
+    addCheck('微观粒子已创建', particleMeta.length === particleCount, `当前数量 ${particleMeta.length}`);
+
+    // 额外的疏密条纹，帮助学生更容易看出“压缩区/稀疏区”。
+    const densityBars = [];
+    const densityBarGeometry = new THREE.PlaneGeometry(0.16, 1.85);
+    for (let i = 0; i < 10; i++) {
+      const bar = new THREE.Mesh(
+        densityBarGeometry,
+        new THREE.MeshBasicMaterial({ color: 0x6db8ff, transparent: true, opacity: 0, side: THREE.DoubleSide })
+      );
+      bar.position.set(-2.0 + i * 0.38, 1.33, -0.18);
+      scene.add(bar);
+      densityBars.push(bar);
+    }
+    addCheck('疏密区辅助层已创建', densityBars.length === 10, `当前数量 ${densityBars.length}`);
+
+    // =========================
+    // 状态 / 时间轴
+    // =========================
+    const state = {
+      playing: true,
+      micro: false,
+      volume: 0.7,
+      freqIndex: 1,
+      timelineTime: 0,
+      lastSpawn: 0,
+      totalDuration: 60,
+      clock: new THREE.Clock(),
+      autoMicro: true
+    };
+
+    const freqMap = [2.2, 4.3, 7.2];
+    const freqLabelMap = ['低', '中', '高'];
+
+    const captionTimeline = [
+      { start: 0, end: 8, text: '声音是如何传播的？' },
+      { start: 8, end: 20, text: '声源振动产生声音' },
+      { start: 20, end: 35, text: '振动通过空气逐层传播' },
+      { start: 35, end: 50, text: '声音可以传递能量' },
+      { start: 50, end: 61, text: '空气分子振动形成声波' }
+    ];
+    addCheck('字幕时间轴已配置', captionTimeline.length === 5, `当前段数 ${captionTimeline.length}`);
+
+    function setCaption(t) {
+      const active = captionTimeline.find(item => t >= item.start && t < item.end) || captionTimeline[0];
+      captionEl.textContent = active.text;
+    }
+
+    function updateUI() {
+      modeText.textContent = `模式：${state.micro ? '微观' : '普通'}`;
+      freqText.textContent = `频率：${freqLabelMap[state.freqIndex]}`;
+      volText.textContent = `音量：${state.volume.toFixed(2)}`;
+      microBtn.classList.toggle('active', state.micro);
+    }
+
+    function resetStringsAndBalls() {
+      balls.forEach(({ group, ball, line, rest }) => {
+        group.rotation.z = 0;
+        ball.position.copy(rest);
+        line.geometry.dispose();
+        line.geometry = makeStringGeometry(rest);
+      });
+    }
+
+    function resetScene() {
+      state.timelineTime = 0;
+      state.lastSpawn = 0;
+      state.playing = false;
+      state.micro = false;
+      playBtn.textContent = '播放';
+      setCaption(0);
+      diaphragm.position.z = diaphragmBaseZ;
+      resetStringsAndBalls();
+      waves.forEach(w => {
+        w.active = false;
+        w.progress = 0;
+        w.mesh.visible = false;
+        w.mesh.material.opacity = 0;
+      });
+      particles.visible = false;
+      particles.material.opacity = 0;
+      densityBars.forEach(bar => {
+        bar.visible = false;
+        bar.material.opacity = 0;
+      });
+      updateUI();
+    }
+
+    // =========================
+    // 交互事件
+    // =========================
+    playBtn.addEventListener('click', () => {
+      state.playing = !state.playing;
+      playBtn.textContent = state.playing ? '暂停' : '播放';
+    });
+
+    resetBtn.addEventListener('click', resetScene);
+
+    microBtn.addEventListener('click', () => {
+      state.micro = !state.micro;
+      state.autoMicro = false;
+      updateUI();
+    });
+
+    volumeInput.addEventListener('input', (e) => {
+      state.volume = Number(e.target.value);
+      updateUI();
+    });
+
+    freqInput.addEventListener('input', (e) => {
+      state.freqIndex = Number(e.target.value);
+      updateUI();
+    });
+
+    updateUI();
+
+    // =========================
+    // 波前更新：多条连续波前逐层向右传播
+    // =========================
+    function updateWaves(dt) {
+      const freq = freqMap[state.freqIndex];
+      const canEmit = state.timelineTime >= 8 && !state.micro;
+      const spawnGap = Math.max(0.18, 0.48 - state.volume * 0.18 - freq * 0.015);
+
+      if (canEmit && state.timelineTime - state.lastSpawn > spawnGap) {
+        spawnWave();
+        state.lastSpawn = state.timelineTime;
+      }
+
+      waves.forEach(w => {
+        if (!w.active) return;
+        w.progress += dt * (1.2 + state.volume * 0.7 + freq * 0.03);
+        w.x = -2.35 + w.progress * 4.55;
+        w.mesh.position.x = w.x;
+        w.mesh.position.y = 1.12;
+
+        // 波前宽度轻微变化，让画面更自然，但仍保持“层层推进”的视觉。
+        const stretchZ = 1 + Math.sin(w.progress * 6.0) * 0.12;
+        w.mesh.scale.set(1, 1, stretchZ);
+        w.mesh.material.opacity = Math.max(0, 0.88 - w.progress * 0.52);
+
+        if (w.progress > 1.55) {
+          w.active = false;
+          w.mesh.visible = false;
+          w.mesh.material.opacity = 0;
+        }
+      });
+    }
+
+    // =========================
+    // 微观粒子更新：原地振动 + 疏密相间
+    // 说明：
+    // - 粒子只在 x 方向附近来回振动，不整体搬移到远处
+    // - 使用相位差形成压缩区 / 稀疏区
+    // - 额外用半透明竖条辅助显示疏密变化
+    // =========================
+    function updateParticles(t) {
+      const positions = particleGeometry.attributes.position.array;
+      const colors = particleGeometry.attributes.color.array;
+      const amplitude = 0.016 + state.volume * 0.032;
+      const omega = freqMap[state.freqIndex] * 1.15;
+      const waveNumber = 5.6;
+
+      for (let i = 0; i < particleMeta.length; i++) {
+        const meta = particleMeta[i];
+        const phase = omega * t - (meta.baseX + 2.25) * waveNumber;
+        const dx = Math.sin(phase) * amplitude;
+        const density = (Math.cos(phase) + 1) * 0.5; // 0~1，用于表现压缩/稀疏
+
+        positions[i * 3] = meta.baseX + dx;
+        positions[i * 3 + 1] = meta.baseY;
+        positions[i * 3 + 2] = meta.baseZ;
+
+        colors[i * 3] = 0.55 + density * 0.25;
+        colors[i * 3 + 1] = 0.75 + density * 0.18;
+        colors[i * 3 + 2] = 0.95 + density * 0.03;
+      }
+
+      particleGeometry.attributes.position.needsUpdate = true;
+      particleGeometry.attributes.color.needsUpdate = true;
+      particles.material.opacity = state.micro ? 0.97 : 0;
+      particles.visible = state.micro;
+
+      densityBars.forEach((bar, index) => {
+        const baseX = -2.0 + index * 0.38;
+        const phase = omega * t - (baseX + 2.1) * waveNumber;
+        const compression = (Math.cos(phase) + 1) * 0.5;
+        bar.visible = state.micro;
+        bar.position.x = baseX + Math.sin(phase) * amplitude * 0.7;
+        bar.scale.x = 0.65 + compression * 0.65;
+        bar.material.opacity = state.micro ? 0.06 + compression * 0.14 : 0;
+      });
+    }
+
+    // =========================
+    // 实验对象更新：
+    // - 强化小球延迟顺序
+    // - 不再同时轻微抖动，而是呈现更清楚的依次响应
+    // =========================
+    function updateExperiment(t) {
+      const omega = freqMap[state.freqIndex];
+      const amp = state.volume * 0.06;
+      const activeExperiment = state.timelineTime >= 8;
+
+      diaphragm.position.z = activeExperiment
+        ? diaphragmBaseZ + Math.sin(t * omega) * amp
+        : diaphragmBaseZ;
+
+      balls.forEach(({ group, ball, line, rest, delay, distance }) => {
+        const started = activeExperiment && t > delay + 8;
+        const localT = started ? (t - 8 - delay) : 0;
+        const envelope = started ? Math.min(1, localT * 1.8) : 0;
+        const strength = envelope * state.volume / (1 + distance * 0.72);
+
+        // 近处先动，远处后动。横摆为主，辅以前后微振与轻微抬升。
+        const swing = Math.sin(localT * omega * 0.95) * strength * 0.34;
+        const zOffset = Math.sin(localT * omega * 1.25) * strength * 0.09;
+        const yLift = Math.max(0, Math.sin(localT * omega * 0.58)) * strength * 0.08;
+
+        group.rotation.z = swing;
+        ball.position.set(0, rest.y + yLift, zOffset);
+
+        line.geometry.dispose();
+        line.geometry = makeStringGeometry(ball.position);
+      });
+
+      speakerGroup.visible = !state.micro;
+      experimentGroup.visible = true;
+      waveGroup.visible = !state.micro;
+    }
+
+    // =========================
+    // 动画主循环
+    // =========================
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = state.clock.getDelta();
+
+      if (state.playing) {
+        state.timelineTime += dt;
+        if (state.timelineTime > state.totalDuration) state.timelineTime = state.totalDuration;
+      }
+
+      const t = state.timelineTime;
+
+      // 自动在末段切到微观模式，方便录屏演示。
+      if (t >= 50 && state.autoMicro && !state.micro) {
+        state.micro = true;
+        updateUI();
+      }
+
+      setCaption(t);
+      updateExperiment(t);
+      updateWaves(dt);
+      updateParticles(t);
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+  </script>
+</body>
+</html>
