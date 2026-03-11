@@ -45,6 +45,8 @@ canvas {
   padding: 16px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
   z-index: 10;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
 }
 
 .panel h1 {
@@ -218,5 +220,109 @@ button.active {
     min-width: 0;
     top: auto;
     bottom: 90px;
+  }
+}
+
+@media (max-width: 900px) {
+  .panel {
+    left: 10px;
+    top: 10px;
+    width: calc(100vw - 20px);
+    max-width: none;
+    border-radius: 12px;
+    padding: 12px;
+    max-height: 52vh;
+  }
+
+  .panel h1 {
+    font-size: 16px;
+  }
+
+  .panel p {
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+
+  .buttons button {
+    flex: 1;
+    min-width: 92px;
+    padding: 10px 8px;
+  }
+
+  .row input[type="range"] {
+    height: 28px;
+  }
+
+  .status {
+    justify-content: flex-start;
+    gap: 12px;
+    font-size: 11px;
+  }
+
+  .legend {
+    margin-top: 8px;
+    padding-top: 8px;
+    font-size: 11px;
+    line-height: 1.45;
+  }
+
+  .teaching-box {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    transform: none;
+    bottom: 78px;
+    border-radius: 12px;
+    padding: 8px 10px;
+  }
+
+  .teaching-title {
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+
+  .teaching-text {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .caption {
+    left: 10px;
+    right: 10px;
+    transform: none;
+    min-width: 0;
+    max-width: none;
+    bottom: 10px;
+    border-radius: 12px;
+    padding: 8px 10px;
+    font-size: 14px;
+    line-height: 1.35;
+  }
+
+  .hint,
+  .devcheck {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .panel {
+    max-height: 48vh;
+  }
+
+  .legend {
+    display: none;
+  }
+
+  .teaching-box {
+    bottom: 64px;
+  }
+
+  .teaching-text {
+    font-size: 12px;
+  }
+
+  .caption {
+    font-size: 13px;
   }
 }
